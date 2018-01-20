@@ -329,7 +329,9 @@ impl FunctionSig {
 
         // Don't parse operatorxx functions in C++
         let spelling = cursor.spelling();
-        if spelling.starts_with("operator") {
+        if (spelling.starts_with("operator=") && !spelling.starts_with("operator==")) ||
+                spelling.starts_with("operator+=") || spelling.starts_with("operator-=") ||
+                spelling.starts_with("operator*=") || spelling.starts_with("operator/=") {
             return Err(ParseError::Continue);
         }
 

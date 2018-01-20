@@ -809,6 +809,29 @@ impl BindgenContext {
 
     /// Mangles a name so it doesn't conflict with any keyword.
     pub fn rust_mangle<'a>(&self, name: &'a str) -> Cow<'a, str> {
+        if name.contains("operator+") ||
+            name.contains("operator-") ||
+            name.contains("operator*") ||
+            name.contains("operator/") ||
+            name.contains("operator==") ||
+            name.contains("operator!=") ||
+            name.contains("operator[]") ||
+            name.contains("operator!") ||
+            name.contains("operator|")
+        {
+            let mut s = name.to_owned();
+            s = s.replace("operator+", "operator_add");
+            s = s.replace("operator-", "operator_sub");
+            s = s.replace("operator*", "operator_mul");
+            s = s.replace("operator/", "operator_div");
+            s = s.replace("operator==", "operator_eq");
+            s = s.replace("operator!=", "operator_neq");
+            s = s.replace("operator[]", "operator_index");
+            s = s.replace("operator!", "operator_not");
+            s = s.replace("operator|", "operator_or");
+            return Cow::Owned(s);
+        }
+
         if name.contains("@") ||
             name.contains("?") ||
             name.contains("$") ||
