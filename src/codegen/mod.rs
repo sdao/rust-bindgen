@@ -2035,6 +2035,12 @@ impl MethodCodegen for Method {
         let function_name = ctx.rust_ident(function_item.canonical_name(ctx));
         let mut args = utils::fnsig_arguments(ctx, signature);
         let mut ret = utils::fnsig_return_ty(ctx, signature);
+        let msvc_hack = match self.kind() {
+            MethodKind::Normal | MethodKind::Virtual {..} => {
+                utils::fnsig_needs_msvc_thiscall(ctx, signature)
+            },
+            _ => false
+        };
 
         if !self.is_static() && !self.is_constructor() {
             args[0] = if self.is_const() {
@@ -2078,6 +2084,16 @@ impl MethodCodegen for Method {
             };
         };
 
+        if msvc_hack {
+            let prefix = ctx.trait_prefix();
+            stmts.push(quote! {
+                let mut __bindgen_msvc_hack_ret = ::#prefix::mem::uninitialized()
+            });
+            exprs.insert(1, quote! {
+                &mut __bindgen_msvc_hack_ret
+            });
+        }
+
         let call = quote! {
             #function_name (#( #exprs ),* )
         };
@@ -2087,6 +2103,12 @@ impl MethodCodegen for Method {
         if self.is_constructor() {
             stmts.push(quote! {
                 __bindgen_tmp
+            });
+        }
+
+        if msvc_hack {
+            stmts.push(quote! {
+                __bindgen_msvc_hack_ret
             });
         }
 
@@ -3212,6 +3234,32 @@ impl CodeGenerator for Function {
         let args = utils::fnsig_arguments(ctx, signature);
         let ret = utils::fnsig_return_ty(ctx, signature);
 
+        // MSVC hack only applies to instance methods w/ non-trivial return value.
+        let msvc_hack = match self.kind() {
+            FunctionKind::Method(ref method_kind) => {
+                match *method_kind {
+                    MethodKind::Normal | MethodKind::Virtual {..} => {
+                        utils::fnsig_needs_msvc_thiscall(ctx, signature)
+                    },
+                    _ => false
+                }
+            },
+            _ => false
+        };
+
+        let (args, ret) = if msvc_hack {
+            let mut args = args.clone();
+            let ret_ty = utils::fnsig_return_ty_noarrow(ctx, signature);
+            assert!(args.len() >= 1, "instance method must have at least one arg (this) {:?}",
+                    args);
+            args.insert(1, quote! {
+                __bindgen_msvc_hack_ret: *mut #ret_ty
+            });
+            (args, quote! {})
+        } else {
+            (args, ret)
+        };
+
         let mut attributes = vec![];
 
         if let Some(comment) = item.comment(ctx) {
@@ -3687,18 +3735,42 @@ mod utils {
         })
     }
 
+    pub fn fnsig_return_ty_noarrow(
+        ctx: &BindgenContext,
+        sig: &FunctionSig,
+    ) -> Option<quote::Tokens> {
+        let return_item = ctx.resolve_item(sig.return_type());
+        if let TypeKind::Void = *return_item.kind().expect_type().kind() {
+            None
+        } else {
+            Some(return_item.to_rust_ty_or_opaque(ctx, &()))
+        }
+    }
+
     pub fn fnsig_return_ty(
         ctx: &BindgenContext,
         sig: &FunctionSig,
     ) -> quote::Tokens {
-        let return_item = ctx.resolve_item(sig.return_type());
-        if let TypeKind::Void = *return_item.kind().expect_type().kind() {
-            quote! { }
-        } else {
-            let ret_ty = return_item.to_rust_ty_or_opaque(ctx, &());
-            quote! {
-                -> #ret_ty
+        let ret_ty = fnsig_return_ty_noarrow(ctx, sig);
+        match ret_ty {
+            Some(r) => quote! { -> #r },
+            None => quote! {}
+        }
+    }
+
+    pub fn fnsig_needs_msvc_thiscall(
+        ctx: &BindgenContext,
+        sig: &FunctionSig,
+    ) -> bool {
+        if cfg!(target_env = "msvc") {
+            let return_type = ctx.resolve_item(sig.return_type()).expect_type();
+            if let TypeKind::Comp(..) = *return_type.safe_canonical_type(ctx).unwrap().kind() {
+                true
+            } else {
+                false
             }
+        } else {
+            false
         }
     }
 
