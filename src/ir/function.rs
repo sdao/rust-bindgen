@@ -331,7 +331,8 @@ impl FunctionSig {
         let spelling = cursor.spelling();
         if (spelling.starts_with("operator=") && !spelling.starts_with("operator==")) ||
                 spelling.starts_with("operator+=") || spelling.starts_with("operator-=") ||
-                spelling.starts_with("operator*=") || spelling.starts_with("operator/=") {
+                spelling.starts_with("operator*=") || spelling.starts_with("operator/=") ||
+                spelling.starts_with("operator()") {
             return Err(ParseError::Continue);
         }
 

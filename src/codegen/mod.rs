@@ -561,7 +561,7 @@ impl CodeGenerator for Var {
                 attrs.push(attributes::link_name(self.name()));
             }
 
-            let mut tokens = quote!(
+            let tokens = quote!(
                 extern "C" {
                     #(#attrs)*
                     pub static mut #canonical_ident: #ty;

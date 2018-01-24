@@ -817,7 +817,8 @@ impl BindgenContext {
             name.contains("operator!=") ||
             name.contains("operator[]") ||
             name.contains("operator!") ||
-            name.contains("operator|")
+            name.contains("operator|") ||
+            name.contains("operator^")
         {
             let mut s = name.to_owned();
             s = s.replace("operator+", "operator_add");
@@ -829,6 +830,7 @@ impl BindgenContext {
             s = s.replace("operator[]", "operator_index");
             s = s.replace("operator!", "operator_not");
             s = s.replace("operator|", "operator_or");
+            s = s.replace("operator^", "operator_xor");
             return Cow::Owned(s);
         }
 
