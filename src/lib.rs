@@ -1079,6 +1079,12 @@ impl Builder {
         self
     }
 
+    /// Sets an explicit path to rustfmt, to be used when rustfmt is enabled.
+    pub fn with_rustfmt<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.options.rustfmt_path = Some(path.into());
+        self
+    }
+
     /// Generate the Rust bindings using the options built up thus far.
     pub fn generate(mut self) -> Result<Bindings, ()> {
         self.options.input_header = self.input_headers.pop();
@@ -1185,22 +1191,22 @@ impl Builder {
 
     /// Don't derive `PartialEq` for a given type. Regular
     /// expressions are supported.
-    pub fn no_partialeq(mut self, arg: String) -> Builder {
-        self.options.no_partialeq_types.insert(arg);
+    pub fn no_partialeq<T: Into<String>>(mut self, arg: T) -> Builder {
+        self.options.no_partialeq_types.insert(arg.into());
         self
     }
 
     /// Don't derive `Copy` for a given type. Regular
     /// expressions are supported.
-    pub fn no_copy(mut self, arg: String) -> Self {
-        self.options.no_copy_types.insert(arg);
+    pub fn no_copy<T: Into<String>>(mut self, arg: T) -> Self {
+        self.options.no_copy_types.insert(arg.into());
         self
     }
 
     /// Don't derive `Hash` for a given type. Regular
     /// expressions are supported.
-    pub fn no_hash(mut self, arg: String) -> Builder {
-        self.options.no_hash_types.insert(arg);
+    pub fn no_hash<T: Into<String>>(mut self, arg: T) -> Builder {
+        self.options.no_hash_types.insert(arg.into());
         self
     }
 }
@@ -1215,6 +1221,9 @@ struct BindgenOptions {
     /// The set of types that should be treated as opaque structures in the
     /// generated code.
     opaque_types: RegexSet,
+
+    /// The explicit rustfmt path.
+    rustfmt_path: Option<PathBuf>,
 
     /// The set of types that we should have bindings for in the generated
     /// code.
@@ -1441,6 +1450,7 @@ impl Default for BindgenOptions {
             rust_features: rust_target.into(),
             blacklisted_types: Default::default(),
             opaque_types: Default::default(),
+            rustfmt_path: Default::default(),
             whitelisted_types: Default::default(),
             whitelisted_functions: Default::default(),
             whitelisted_vars: Default::default(),
@@ -1709,10 +1719,19 @@ impl Bindings {
             return Ok(Cow::Borrowed(source));
         }
 
-        let rustfmt = which::which("rustfmt")
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_owned()))?;
+        let rustfmt = match self.options.rustfmt_path {
+            Some(ref p) => Cow::Borrowed(p),
+            None => {
+                let path = which::which("rustfmt")
+                    .map_err(|e| {
+                        io::Error::new(io::ErrorKind::Other, e.to_owned())
+                    })?;
 
-        let mut cmd = Command::new(rustfmt);
+                Cow::Owned(path)
+            }
+        };
+
+        let mut cmd = Command::new(&*rustfmt);
 
         cmd
             .stdin(Stdio::piped())
