@@ -3773,8 +3773,6 @@ mod utils {
         ctx: &BindgenContext,
         sig: &FunctionSig,
     ) -> Vec<quote::Tokens> {
-        use super::ToPtr;
-
         let mut unnamed_arguments = 0;
         let mut args = sig.argument_types().iter().map(|&(ref name, ty)| {
             let arg_item = ctx.resolve_item(ty);
@@ -3789,9 +3787,15 @@ mod utils {
             //
             // [1]: http://c0x.coding-guidelines.com/6.7.5.3.html
             let arg_ty = match *arg_ty.canonical_type(ctx).kind() {
-                TypeKind::Array(t, _) => {
-                    t.to_rust_ty_or_opaque(ctx, &())
-                        .to_ptr(ctx.resolve_type(t).is_const())
+                TypeKind::Array(t, len) => {
+                    let ty = t.to_rust_ty_or_opaque(ctx, &());
+                    let is_const = arg_ty.canonical_type(ctx).is_const();
+                    if is_const {
+                        quote! { *const [ #ty ; #len ] }
+                    }
+                    else {
+                        quote! { *mut [ #ty ; #len ] }
+                    }
                 },
                 TypeKind::Pointer(inner) => {
                     let inner = ctx.resolve_item(inner);

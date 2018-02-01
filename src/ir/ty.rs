@@ -778,6 +778,7 @@ impl Type {
             );
         }
 
+        let mut array_constness = None;
         let kind = if location.kind() == CXCursor_TemplateRef ||
             (ty.template_args().is_some() && ty_kind != CXType_Typedef)
         {
@@ -1175,6 +1176,7 @@ impl Type {
                         None,
                         ctx,
                     ).expect("Not able to resolve array element?");
+                    array_constness = Some(ty.elem_type().as_ref().unwrap().is_const());
                     TypeKind::Array(inner, ty.num_elements().unwrap())
                 }
                 CXType_Elaborated => {
@@ -1208,7 +1210,10 @@ impl Type {
         };
 
         let name = if name.is_empty() { None } else { Some(name) };
-        let is_const = ty.is_const();
+        let is_const = match array_constness{
+            None => ty.is_const(),
+            Some(c) => c,
+        };
 
         let ty = Type::new(name, layout, kind, is_const);
         // TODO: maybe declaration.canonical()?
